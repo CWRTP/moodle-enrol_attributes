@@ -341,8 +341,86 @@ class enrol_attributes_plugin extends enrol_plugin {
                 $enrol_attributes_instance->enrol_user($enrol_attributes_record, $user->id,
                         $enrol_attributes_record->roleid);
                 $nbenrolled++;
-            }
+            
+                   // Send welcome message.
+        if ($instance->customint2) {
+            $this->email_welcome_message($instance, $USER);
         }
+
+        return 0;
+    }
+
+
+
+    /**
+     * Send welcome email to specified user.
+     *
+     * @param stdClass $instance
+     * @param stdClass $user user record
+     * @return void
+     */
+    public function email_welcome_message($instance, $user) {
+        global $CFG, $DB, $PAGE;
+
+        $course = $DB->get_record('course', array('id'=>$instance->courseid), '*', MUST_EXIST);
+        $context = context_course::instance($course->id);
+
+        $a = new stdClass();
+        $a->coursename = format_string($course->fullname, true, array('context'=>$context));
+        $a->profileurl = "{$CFG->wwwroot}/user/view.php?id={$user->id}&course={$course->id}";
+        $strmgr = get_string_manager();
+
+        if (trim($instance->customtext1) !== '') {
+            $message = $instance->customtext1;
+            $message = str_replace('{$a->coursename}', $a->coursename, $message);
+            $message = str_replace('{$a->profileurl}', $a->profileurl, $message);
+            if (strpos($message, '<') === false) {
+                // Plain text only.
+                $messagetext = $message;
+                $messagehtml = text_to_html($messagetext, null, false, true);
+            } else {
+                // This is most probably the tag/newline soup known as FORMAT_MOODLE.
+                $messagehtml = format_text($message, FORMAT_MOODLE, array('context'=>$context, 'para'=>false, 'newlines'=>true, 'filter'=>true));
+                $messagetext = html_to_text($messagehtml);
+            }
+        } else {
+            $messagetext = $strmgr->get_string('welcometocoursetext', 'enrol_auto', $a, $user->lang);
+            $messagehtml = text_to_html($messagetext, null, false, true);
+        }
+
+        $subject = $strmgr->get_string('welcometocourse', 'enrol_auto', format_string($course->fullname, true, array('context'=>$context)), $user->lang);
+        $subject =  str_replace('&amp;', '&', $subject);
+
+        $rusers = array();
+        if (!empty($CFG->coursecontact)) {
+            $croles = explode(',', $CFG->coursecontact);
+            list($sort, $sortparams) = users_order_by_sql('u');
+            // We only use the first user.
+            $i = 0;
+            do {
+                $rusers = get_role_users($croles[$i], $context, true, '',
+                    'r.sortorder ASC, ' . $sort, null, '', '', '', '', $sortparams);
+                $i++;
+            } while (empty($rusers) && !empty($croles[$i]));
+        }
+        if ($rusers) {
+            $contact = reset($rusers);
+        } else {
+            $contact = core_user::get_support_user();
+        }
+
+        if (empty($PAGE->context)) {
+            // Context is needed by email_to_user.
+            $PAGE->set_context($context);
+            $resetpage = true;
+        }
+        // Send welcome email.
+        email_to_user($user, $contact, $subject, $messagetext, $messagehtml);
+        if (!empty($resetpage)) {
+            // Don't interfere with page setup - this will happen later.
+            $PAGE->reset_theme_and_output();
+        }
+    }
 
         if (!$event && !$instanceid) {
             // we only want output if runnning within the cron
