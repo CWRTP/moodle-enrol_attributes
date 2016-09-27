@@ -59,6 +59,12 @@ class enrol_attributes_edit_form extends moodleform {
         $mform->setType('id', PARAM_INT);
         $mform->addElement('hidden', 'courseid');
         $mform->setType('courseid', PARAM_INT);
+        $mform->addElement('advcheckbox', 'customint2', get_string('sendcoursewelcomemessage', 'enrol_auto'));
+        $mform->addHelpButton('customint2', 'sendcoursewelcomemessage', 'enrol_auto');
+
+        $mform->addElement('textarea', 'customtext1', get_string('customwelcomemessage', 'enrol_auto'), array('cols'=>'60', 'rows'=>'8'));
+        $mform->addHelpButton('customtext1', 'customwelcomemessage', 'enrol_auto');
+        $mform->disabledIf('customtext1', 'customint2', 'notchecked');
 
         $this->add_action_buttons(true, ($instance->id ? null : get_string('addinstance', 'enrol')));
 
